@@ -18,7 +18,9 @@ export default function App() {
   }, []);
 
   async function cargarExcel() {
-    const response = await fetch("/jugadores.xlsx");
+    const response = await fetch(
+  `/jugadores.xlsx?v=${new Date().getTime()}`
+);
 
     const data = await response.arrayBuffer();
 
