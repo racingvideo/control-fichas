@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+import emailjs from "@emailjs/browser";
 
 export default function App() {
   const [jugadores, setJugadores] = useState([]);
@@ -126,6 +127,63 @@ export default function App() {
     };
   }
 
+  async function enviarAlertas() {
+    const jugadoresUrgentes = jugadores.filter(
+      (jugador) => {
+        const dias = calcularDiasRestantes(
+          jugador.vencimiento
+        );
+
+        const estado = obtenerEstado(
+          dias,
+          jugador.estadoExcel
+        );
+
+        return (
+          estado.texto === "Vencida" ||
+          estado.texto === "Urgente"
+        );
+      }
+    );
+
+    if (jugadoresUrgentes.length === 0) {
+      alert(
+        "No hay jugadores urgentes o vencidos."
+      );
+      return;
+    }
+
+    const mensaje = jugadoresUrgentes
+      .map((j) => {
+        const dias = calcularDiasRestantes(
+          j.vencimiento
+        );
+
+        return `• ${j.nombre} (${j.categoria}) - ${j.vencimiento} (${dias} días)`;
+      })
+      .join("\n");
+
+    try {
+      await emailjs.send(
+        "service_5x2tbn1",
+        "template_ud6605j",
+        {
+          mensaje: mensaje,
+          to_email: "videoanalisisracing2022@gmail.com",
+        },
+        "762iROv7nnKZVp4Hc"
+      );
+
+      alert("Alertas enviadas correctamente.");
+    } catch (error) {
+      console.error(error);
+
+      alert(
+        "Error al enviar las alertas."
+      );
+    }
+  }
+
   const jugadoresFiltrados = useMemo(() => {
     return [...jugadores]
       .filter((jugador) => {
@@ -238,27 +296,50 @@ export default function App() {
         <div
           style={{
             marginBottom: "30px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: "15px",
           }}
         >
-          <h1
-            style={{
-              fontSize: "36px",
-              marginBottom: "10px",
-              color: "#111827",
-            }}
-          >
-            Control de Fichas Médicas
-          </h1>
+          <div>
+            <h1
+              style={{
+                fontSize: "36px",
+                marginBottom: "10px",
+                color: "#111827",
+              }}
+            >
+              Control de Fichas Médicas
+            </h1>
 
-          <p
+            <p
+              style={{
+                color: "#6b7280",
+                fontSize: "16px",
+              }}
+            >
+              Seguimiento de vencimientos y
+              habilitaciones de jugadores
+            </p>
+          </div>
+
+          <button
+            onClick={enviarAlertas}
             style={{
-              color: "#6b7280",
-              fontSize: "16px",
+              background: "#dc2626",
+              color: "white",
+              border: "none",
+              padding: "14px 20px",
+              borderRadius: "12px",
+              fontWeight: "bold",
+              cursor: "pointer",
+              fontSize: "15px",
             }}
           >
-            Seguimiento de vencimientos y
-            habilitaciones de jugadores
-          </p>
+            🚨 Enviar alertas
+          </button>
         </div>
 
         {/* DASHBOARD */}
@@ -308,8 +389,6 @@ export default function App() {
               "0 4px 20px rgba(0,0,0,0.06)",
           }}
         >
-          {/* PRIORIDADES */}
-
           <SectionTitle title="Prioridad" />
 
           <div style={filtrosContainer}>
@@ -335,8 +414,6 @@ export default function App() {
               />
             ))}
           </div>
-
-          {/* CATEGORÍAS */}
 
           <SectionTitle title="Categorías" />
 
@@ -365,8 +442,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* BUSCADOR */}
-
           <input
             type="text"
             placeholder="Buscar jugador..."
@@ -385,8 +460,6 @@ export default function App() {
               boxSizing: "border-box",
             }}
           />
-
-          {/* TABLA */}
 
           <div
             style={{
