@@ -115,7 +115,10 @@ export default function App() {
       };
     }
 
-    if (estadoTexto.includes("urgente") || dias <= 7) {
+    if (
+      estadoTexto.includes("urgente") ||
+      dias <= 45
+    ) {
       return {
         texto: "Urgente",
         color: "#dc2626",
@@ -123,7 +126,7 @@ export default function App() {
       };
     }
 
-    if (dias <= 15) {
+    if (dias <= 90) {
       return {
         texto: "Atención",
         color: "#f59e0b",
@@ -140,9 +143,7 @@ export default function App() {
 
   function obtenerIconoAlerta(dias) {
     if (dias < 0) return "⛔";
-    if (dias <= 7) return "🔴";
-    if (dias <= 15) return "🟠";
-    return "🟡";
+    return "🔴";
   }
 
   function obtenerTextoDias(dias) {
@@ -178,7 +179,15 @@ export default function App() {
               jugador.vencimiento
             );
 
-            return dias <= 45;
+            const estado = obtenerEstado(
+              dias,
+              jugador.estadoExcel
+            );
+
+            return (
+              estado.texto === "Vencida" ||
+              estado.texto === "Urgente"
+            );
           })
           .sort((a, b) => {
             const diasA = calcularDiasRestantes(
@@ -231,7 +240,7 @@ Por favor gestionar renovaciones correspondientes.
 
       if (cantidadMailsEnviados === 0) {
         alert(
-          "No hay jugadores con vencimiento dentro de los próximos 45 días."
+          "No hay jugadores vencidos o urgentes para enviar."
         );
         return;
       }
@@ -317,16 +326,15 @@ Por favor gestionar renovaciones correspondientes.
         jugador.estadoExcel
       );
 
-      if (estado.texto === "Vencida")
+      if (estado.texto === "Vencida") {
         vencidas++;
-
-      else if (estado.texto === "Urgente")
+      } else if (estado.texto === "Urgente") {
         urgentes++;
-
-      else if (estado.texto === "Atención")
+      } else if (estado.texto === "Atención") {
         atencion++;
-
-      else alDia++;
+      } else {
+        alDia++;
+      }
     });
 
     return {
@@ -353,8 +361,6 @@ Por favor gestionar renovaciones correspondientes.
           margin: "0 auto",
         }}
       >
-        {/* HEADER */}
-
         <div
           style={{
             marginBottom: "30px",
@@ -404,8 +410,6 @@ Por favor gestionar renovaciones correspondientes.
           </button>
         </div>
 
-        {/* DASHBOARD */}
-
         <div
           style={{
             display: "grid",
@@ -439,8 +443,6 @@ Por favor gestionar renovaciones correspondientes.
             color="#16a34a"
           />
         </div>
-
-        {/* PANEL */}
 
         <div
           style={{
