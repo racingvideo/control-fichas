@@ -2,6 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 
+const entrenadores = {
+  "Tercera Division": "ramirodoes@gmail.com",
+  "Sub 19": "ramirodoes@gmail.com",
+  "Sub 17": "ramirodoes@gmail.com",
+  "Sub 16": "videoanalisisracing2022@gmail.com",
+  "Sub 15": "videoanalisisracing2022@gmail.com",
+  "Sub 14": "ramirodoes@gmail.com",
+};
+
 export default function App() {
   const [jugadores, setJugadores] = useState([]);
 
@@ -19,8 +28,8 @@ export default function App() {
 
   async function cargarExcel() {
     const response = await fetch(
-  `/jugadores.xlsx?v=${new Date().getTime()}`
-);
+      `/jugadores.xlsx?v=${new Date().getTime()}`
+    );
 
     const data = await response.arrayBuffer();
 
@@ -129,60 +138,111 @@ export default function App() {
     };
   }
 
-  async function enviarAlertas() {
-    const jugadoresUrgentes = jugadores.filter(
-      (jugador) => {
-        const dias = calcularDiasRestantes(
-          jugador.vencimiento
-        );
+  function obtenerIconoAlerta(dias) {
+    if (dias < 0) return "⛔";
+    if (dias <= 7) return "🔴";
+    if (dias <= 15) return "🟠";
+    return "🟡";
+  }
 
-        const estado = obtenerEstado(
-          dias,
-          jugador.estadoExcel
-        );
-
-        return (
-          estado.texto === "Vencida" ||
-          estado.texto === "Urgente"
-        );
-      }
-    );
-
-    if (jugadoresUrgentes.length === 0) {
-      alert(
-        "No hay jugadores urgentes o vencidos."
-      );
-      return;
+  function obtenerTextoDias(dias) {
+    if (dias < 0) {
+      return `vencida hace ${Math.abs(dias)} días`;
     }
 
-    const mensaje = jugadoresUrgentes
-      .map((j) => {
-        const dias = calcularDiasRestantes(
-          j.vencimiento
+    if (dias === 0) {
+      return "vence hoy";
+    }
+
+    if (dias === 1) {
+      return "vence mañana";
+    }
+
+    return `vence en ${dias} días`;
+  }
+
+  async function enviarAlertas() {
+    try {
+      let cantidadMailsEnviados = 0;
+
+      for (const categoria in entrenadores) {
+        const mailEntrenador = entrenadores[categoria];
+
+        const jugadoresCategoria = jugadores
+          .filter((jugador) => {
+            if (jugador.categoria !== categoria) {
+              return false;
+            }
+
+            const dias = calcularDiasRestantes(
+              jugador.vencimiento
+            );
+
+            return dias <= 45;
+          })
+          .sort((a, b) => {
+            const diasA = calcularDiasRestantes(
+              a.vencimiento
+            );
+
+            const diasB = calcularDiasRestantes(
+              b.vencimiento
+            );
+
+            return diasA - diasB;
+          });
+
+        if (jugadoresCategoria.length === 0) {
+          continue;
+        }
+
+        const mensaje = jugadoresCategoria
+          .map((jugador) => {
+            const dias = calcularDiasRestantes(
+              jugador.vencimiento
+            );
+
+            const icono = obtenerIconoAlerta(dias);
+
+            const textoDias = obtenerTextoDias(dias);
+
+            return `${icono} ${jugador.nombre} - ${textoDias} (${jugador.vencimiento})`;
+          })
+          .join("\n");
+
+        await emailjs.send(
+          "service_5x2tbn1",
+          "template_ud6605j",
+          {
+            mensaje: `
+Categoría: ${categoria}
+
+${mensaje}
+
+Por favor gestionar renovaciones correspondientes.
+            `,
+            to_email: mailEntrenador,
+          },
+          "762iROv7nnKZVp4Hc"
         );
 
-        return `• ${j.nombre} (${j.categoria}) - ${j.vencimiento} (${dias} días)`;
-      })
-      .join("\n");
+        cantidadMailsEnviados++;
+      }
 
-    try {
-      await emailjs.send(
-        "service_5x2tbn1",
-        "template_ud6605j",
-        {
-          mensaje: mensaje,
-          to_email: "videoanalisisracing2022@gmail.com",
-        },
-        "762iROv7nnKZVp4Hc"
+      if (cantidadMailsEnviados === 0) {
+        alert(
+          "No hay jugadores con vencimiento dentro de los próximos 45 días."
+        );
+        return;
+      }
+
+      alert(
+        `Alertas enviadas correctamente. Correos enviados: ${cantidadMailsEnviados}`
       );
-
-      alert("Alertas enviadas correctamente.");
     } catch (error) {
       console.error(error);
 
-      alert(
-        "Error al enviar las alertas."
-      );
+      alert("Error al enviar alertas.");
     }
   }
 
