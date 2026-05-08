@@ -14,10 +14,15 @@ const entrenadores = {
 export default function App() {
   const [jugadores, setJugadores] = useState([]);
   const [busqueda, setBusqueda] = useState("");
+
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState("Todas");
+
   const [prioridadSeleccionada, setPrioridadSeleccionada] =
     useState("Todas");
+
+  const [mostrarVistaPrevia, setMostrarVistaPrevia] =
+    useState(false);
 
   useEffect(() => {
     cargarExcel();
@@ -149,93 +154,122 @@ export default function App() {
     return `vence en ${dias} días`;
   }
 
+  function prepararAlertas() {
+    let alertas = [];
+
+    for (const categoria in entrenadores) {
+      const mailEntrenador = entrenadores[categoria];
+
+      const jugadoresCategoria = jugadores
+        .filter((jugador) => {
+          if (jugador.categoria !== categoria) {
+            return false;
+          }
+
+          const dias = calcularDiasRestantes(
+            jugador.vencimiento
+          );
+
+          const estado = obtenerEstado(dias);
+
+          return (
+            estado.texto === "Vencida" ||
+            estado.texto === "Urgente"
+          );
+        })
+        .sort((a, b) => {
+          const diasA = calcularDiasRestantes(
+            a.vencimiento
+          );
+
+          const diasB = calcularDiasRestantes(
+            b.vencimiento
+          );
+
+          return diasA - diasB;
+        });
+
+      if (jugadoresCategoria.length === 0) {
+        continue;
+      }
+
+      const mensajeJugadores = jugadoresCategoria
+        .map((jugador) => {
+          const dias = calcularDiasRestantes(
+            jugador.vencimiento
+          );
+
+          const icono = obtenerIconoAlerta(dias);
+          const textoDias = obtenerTextoDias(dias);
+
+          return `${icono} ${jugador.nombre} - ${textoDias} (${jugador.vencimiento})`;
+        })
+        .join("\n");
+
+      const subject = `Control de fichas médicas - ${categoria}`;
+
+      const mensaje = `
+Categoría: ${categoria}
+
+${mensajeJugadores}
+
+Por favor gestionar renovaciones correspondientes.
+      `;
+
+      alertas.push({
+        categoria,
+        mailEntrenador,
+        jugadores: jugadoresCategoria,
+        subject,
+        mensaje,
+      });
+    }
+
+    return alertas;
+  }
+
   async function enviarAlertas() {
+    const alertas = prepararAlertas();
+
+    if (alertas.length === 0) {
+      alert(
+        "No hay jugadores vencidos o urgentes para enviar."
+      );
+      return;
+    }
+
+    const confirmar = window.confirm(
+      `Se enviarán ${alertas.length} correos. ¿Confirmás el envío?`
+    );
+
+    if (!confirmar) return;
+
     try {
-      let cantidadMailsEnviados = 0;
-
-      for (const categoria in entrenadores) {
-        const mailEntrenador = entrenadores[categoria];
-
-        const jugadoresCategoria = jugadores
-          .filter((jugador) => {
-            if (jugador.categoria !== categoria) {
-              return false;
-            }
-
-            const dias = calcularDiasRestantes(
-              jugador.vencimiento
-            );
-
-            const estado = obtenerEstado(dias);
-
-            return (
-              estado.texto === "Vencida" ||
-              estado.texto === "Urgente"
-            );
-          })
-          .sort((a, b) => {
-            const diasA = calcularDiasRestantes(
-              a.vencimiento
-            );
-
-            const diasB = calcularDiasRestantes(
-              b.vencimiento
-            );
-
-            return diasA - diasB;
-          });
-
-        if (jugadoresCategoria.length === 0) {
-          continue;
-        }
-
-        const mensaje = jugadoresCategoria
-          .map((jugador) => {
-            const dias = calcularDiasRestantes(
-              jugador.vencimiento
-            );
-
-            const icono = obtenerIconoAlerta(dias);
-            const textoDias = obtenerTextoDias(dias);
-
-            return `${icono} ${jugador.nombre} - ${textoDias} (${jugador.vencimiento})`;
-          })
-          .join("\n");
-
+      for (const alerta of alertas) {
         await emailjs.send(
           "service_5x2tbn1",
           "template_ud6605j",
           {
-            mensaje: `
-Categoría: ${categoria}
-
-${mensaje}
-
-Por favor gestionar renovaciones correspondientes.
-            `,
-            to_email: mailEntrenador,
+            subject: alerta.subject,
+            mensaje: alerta.mensaje,
+            to_email: alerta.mailEntrenador,
           },
           "762iROv7nnKZVp4Hc"
         );
-
-        cantidadMailsEnviados++;
-      }
-
-      if (cantidadMailsEnviados === 0) {
-        alert(
-          "No hay jugadores vencidos o urgentes para enviar."
-        );
-        return;
       }
 
       alert(
-        `Alertas enviadas correctamente. Correos enviados: ${cantidadMailsEnviados}`
+        `Alertas enviadas correctamente. Correos enviados: ${alertas.length}`
       );
     } catch (error) {
       console.error(error);
       alert("Error al enviar alertas.");
     }
   }
+
+  const alertasPreview = useMemo(() => {
+    return prepararAlertas();
+  }, [jugadores]);
 
   const jugadoresFiltrados = useMemo(() => {
     return [...jugadores]
@@ -363,22 +397,167 @@ Por favor gestionar renovaciones correspondientes.
             </p>
           </div>
 
-          <button
-            onClick={enviarAlertas}
+          <div
             style={{
-              background: "#dc2626",
-              color: "white",
-              border: "none",
-              padding: "14px 20px",
-              borderRadius: "12px",
-              fontWeight: "bold",
-              cursor: "pointer",
-              fontSize: "15px",
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
             }}
           >
-            🚨 Enviar alertas
-          </button>
+            <button
+              onClick={() =>
+                setMostrarVistaPrevia(
+                  !mostrarVistaPrevia
+                )
+              }
+              style={{
+                background: "#111827",
+                color: "white",
+                border: "none",
+                padding: "14px 20px",
+                borderRadius: "12px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                fontSize: "15px",
+              }}
+            >
+              👁️ Vista previa
+            </button>
+
+            <button
+              onClick={enviarAlertas}
+              style={{
+                background: "#dc2626",
+                color: "white",
+                border: "none",
+                padding: "14px 20px",
+                borderRadius: "12px",
+                fontWeight: "bold",
+                cursor: "pointer",
+                fontSize: "15px",
+              }}
+            >
+              🚨 Enviar alertas
+            </button>
+          </div>
         </div>
+
+        {mostrarVistaPrevia && (
+          <div
+            style={{
+              background: "white",
+              borderRadius: "18px",
+              padding: "20px",
+              marginBottom: "30px",
+              boxShadow:
+                "0 4px 20px rgba(0,0,0,0.06)",
+            }}
+          >
+            <h2
+              style={{
+                marginTop: 0,
+                color: "#111827",
+              }}
+            >
+              Vista previa de alertas
+            </h2>
+
+            {alertasPreview.length === 0 ? (
+              <p
+                style={{
+                  color: "#6b7280",
+                  fontSize: "16px",
+                }}
+              >
+                No hay jugadores vencidos o urgentes para
+                enviar.
+              </p>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gap: "18px",
+                }}
+              >
+                {alertasPreview.map((alerta) => (
+                  <div
+                    key={alerta.categoria}
+                    style={{
+                      border: "1px solid #e5e7eb",
+                      borderRadius: "14px",
+                      padding: "16px",
+                      background: "#f9fafb",
+                    }}
+                  >
+                    <h3
+                      style={{
+                        marginTop: 0,
+                        marginBottom: "8px",
+                        color: "#111827",
+                      }}
+                    >
+                      {alerta.categoria}
+                    </h3>
+
+                    <p
+                      style={{
+                        marginTop: 0,
+                        color: "#6b7280",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Enviar a:{" "}
+                      <strong>
+                        {alerta.mailEntrenador}
+                      </strong>
+                    </p>
+
+                    <p
+                      style={{
+                        marginTop: 0,
+                        color: "#374151",
+                        fontSize: "14px",
+                      }}
+                    >
+                      Asunto:{" "}
+                      <strong>{alerta.subject}</strong>
+                    </p>
+
+                    <ul
+                      style={{
+                        marginBottom: 0,
+                        paddingLeft: "20px",
+                      }}
+                    >
+                      {alerta.jugadores.map((jugador) => {
+                        const dias =
+                          calcularDiasRestantes(
+                            jugador.vencimiento
+                          );
+
+                        return (
+                          <li
+                            key={jugador.id}
+                            style={{
+                              marginBottom: "6px",
+                            }}
+                          >
+                            {obtenerIconoAlerta(dias)}{" "}
+                            <strong>
+                              {jugador.nombre}
+                            </strong>{" "}
+                            — {obtenerTextoDias(dias)} (
+                            {jugador.vencimiento})
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div
           style={{
