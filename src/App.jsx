@@ -13,12 +13,9 @@ const entrenadores = {
 
 export default function App() {
   const [jugadores, setJugadores] = useState([]);
-
   const [busqueda, setBusqueda] = useState("");
-
   const [categoriaSeleccionada, setCategoriaSeleccionada] =
     useState("Todas");
-
   const [prioridadSeleccionada, setPrioridadSeleccionada] =
     useState("Todas");
 
@@ -32,7 +29,6 @@ export default function App() {
     );
 
     const data = await response.arrayBuffer();
-
     const workbook = XLSX.read(data);
 
     let jugadoresProcesados = [];
@@ -92,9 +88,7 @@ export default function App() {
 
   function calcularDiasRestantes(fecha) {
     const hoy = new Date();
-
     const vencimiento = new Date(fecha);
-
     const diferencia = vencimiento - hoy;
 
     return Math.ceil(
@@ -102,12 +96,8 @@ export default function App() {
     );
   }
 
-  function obtenerEstado(dias, estadoExcel) {
-    const estadoTexto = String(
-      estadoExcel || ""
-    ).toLowerCase();
-
-    if (estadoTexto.includes("vencido") || dias < 0) {
+  function obtenerEstado(dias) {
+    if (dias < 0) {
       return {
         texto: "Vencida",
         color: "#111111",
@@ -115,10 +105,7 @@ export default function App() {
       };
     }
 
-    if (
-      estadoTexto.includes("urgente") ||
-      dias <= 45
-    ) {
+    if (dias <= 45) {
       return {
         texto: "Urgente",
         color: "#dc2626",
@@ -179,10 +166,7 @@ export default function App() {
               jugador.vencimiento
             );
 
-            const estado = obtenerEstado(
-              dias,
-              jugador.estadoExcel
-            );
+            const estado = obtenerEstado(dias);
 
             return (
               estado.texto === "Vencida" ||
@@ -212,7 +196,6 @@ export default function App() {
             );
 
             const icono = obtenerIconoAlerta(dias);
-
             const textoDias = obtenerTextoDias(dias);
 
             return `${icono} ${jugador.nombre} - ${textoDias} (${jugador.vencimiento})`;
@@ -250,7 +233,6 @@ Por favor gestionar renovaciones correspondientes.
       );
     } catch (error) {
       console.error(error);
-
       alert("Error al enviar alertas.");
     }
   }
@@ -265,17 +247,13 @@ Por favor gestionar renovaciones correspondientes.
 
         const coincideCategoria =
           categoriaSeleccionada === "Todas" ||
-          jugador.categoria ===
-            categoriaSeleccionada;
+          jugador.categoria === categoriaSeleccionada;
 
         const dias = calcularDiasRestantes(
           jugador.vencimiento
         );
 
-        const estado = obtenerEstado(
-          dias,
-          jugador.estadoExcel
-        );
+        const estado = obtenerEstado(dias);
 
         const coincidePrioridad =
           prioridadSeleccionada === "Todas" ||
@@ -289,19 +267,14 @@ Por favor gestionar renovaciones correspondientes.
       })
       .sort((a, b) => {
         const estadoA = obtenerEstado(
-          calcularDiasRestantes(a.vencimiento),
-          a.estadoExcel
+          calcularDiasRestantes(a.vencimiento)
         );
 
         const estadoB = obtenerEstado(
-          calcularDiasRestantes(b.vencimiento),
-          b.estadoExcel
+          calcularDiasRestantes(b.vencimiento)
         );
 
-        return (
-          estadoA.prioridad -
-          estadoB.prioridad
-        );
+        return estadoA.prioridad - estadoB.prioridad;
       });
   }, [
     jugadores,
@@ -321,10 +294,7 @@ Por favor gestionar renovaciones correspondientes.
         jugador.vencimiento
       );
 
-      const estado = obtenerEstado(
-        dias,
-        jugador.estadoExcel
-      );
+      const estado = obtenerEstado(dias);
 
       if (estado.texto === "Vencida") {
         vencidas++;
@@ -466,13 +436,10 @@ Por favor gestionar renovaciones correspondientes.
               <FiltroButton
                 key={prioridad}
                 activo={
-                  prioridadSeleccionada ===
-                  prioridad
+                  prioridadSeleccionada === prioridad
                 }
                 onClick={() =>
-                  setPrioridadSeleccionada(
-                    prioridad
-                  )
+                  setPrioridadSeleccionada(prioridad)
                 }
                 texto={prioridad}
               />
@@ -485,21 +452,16 @@ Por favor gestionar renovaciones correspondientes.
             {[
               "Todas",
               ...new Set(
-                jugadores.map(
-                  (j) => j.categoria
-                )
+                jugadores.map((j) => j.categoria)
               ),
             ].map((categoria) => (
               <FiltroButton
                 key={categoria}
                 activo={
-                  categoriaSeleccionada ===
-                  categoria
+                  categoriaSeleccionada === categoria
                 }
                 onClick={() =>
-                  setCategoriaSeleccionada(
-                    categoria
-                  )
+                  setCategoriaSeleccionada(categoria)
                 }
                 texto={categoria}
               />
@@ -540,104 +502,70 @@ Por favor gestionar renovaciones correspondientes.
             >
               <thead>
                 <tr>
-                  <th style={thStyle}>
-                    Jugador
-                  </th>
-                  <th style={thStyle}>
-                    Categoría
-                  </th>
-                  <th style={thStyle}>
-                    Cédula
-                  </th>
-                  <th style={thStyle}>
-                    Vencimiento
-                  </th>
-                  <th style={thStyle}>
-                    Días
-                  </th>
-                  <th style={thStyle}>
-                    Estado
-                  </th>
+                  <th style={thStyle}>Jugador</th>
+                  <th style={thStyle}>Categoría</th>
+                  <th style={thStyle}>Cédula</th>
+                  <th style={thStyle}>Vencimiento</th>
+                  <th style={thStyle}>Días</th>
+                  <th style={thStyle}>Estado</th>
                 </tr>
               </thead>
 
               <tbody>
-                {jugadoresFiltrados.map(
-                  (jugador) => {
-                    const dias =
-                      calcularDiasRestantes(
-                        jugador.vencimiento
-                      );
-
-                    const estado =
-                      obtenerEstado(
-                        dias,
-                        jugador.estadoExcel
-                      );
-
-                    return (
-                      <tr
-                        key={jugador.id}
-                        style={{
-                          borderBottom:
-                            "1px solid #e5e7eb",
-                        }}
-                      >
-                        <td style={tdStyle}>
-                          <strong>
-                            {jugador.nombre}
-                          </strong>
-                        </td>
-
-                        <td style={tdStyle}>
-                          {
-                            jugador.categoria
-                          }
-                        </td>
-
-                        <td style={tdStyle}>
-                          {jugador.cedula}
-                        </td>
-
-                        <td style={tdStyle}>
-                          {
-                            jugador.vencimiento
-                          }
-                        </td>
-
-                        <td style={tdStyle}>
-                          {dias}
-                        </td>
-
-                        <td style={tdStyle}>
-                          <span
-                            style={{
-                              background:
-                                estado.color,
-                              color: "white",
-                              padding:
-                                "8px 12px",
-                              borderRadius:
-                                "999px",
-                              fontWeight:
-                                "bold",
-                              fontSize:
-                                "14px",
-                              display:
-                                "inline-block",
-                              minWidth:
-                                "90px",
-                              textAlign:
-                                "center",
-                            }}
-                          >
-                            {estado.texto}
-                          </span>
-                        </td>
-                      </tr>
+                {jugadoresFiltrados.map((jugador) => {
+                  const dias =
+                    calcularDiasRestantes(
+                      jugador.vencimiento
                     );
-                  }
-                )}
+
+                  const estado = obtenerEstado(dias);
+
+                  return (
+                    <tr
+                      key={jugador.id}
+                      style={{
+                        borderBottom:
+                          "1px solid #e5e7eb",
+                      }}
+                    >
+                      <td style={tdStyle}>
+                        <strong>{jugador.nombre}</strong>
+                      </td>
+
+                      <td style={tdStyle}>
+                        {jugador.categoria}
+                      </td>
+
+                      <td style={tdStyle}>
+                        {jugador.cedula}
+                      </td>
+
+                      <td style={tdStyle}>
+                        {jugador.vencimiento}
+                      </td>
+
+                      <td style={tdStyle}>{dias}</td>
+
+                      <td style={tdStyle}>
+                        <span
+                          style={{
+                            background: estado.color,
+                            color: "white",
+                            padding: "8px 12px",
+                            borderRadius: "999px",
+                            fontWeight: "bold",
+                            fontSize: "14px",
+                            display: "inline-block",
+                            minWidth: "90px",
+                            textAlign: "center",
+                          }}
+                        >
+                          {estado.texto}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
