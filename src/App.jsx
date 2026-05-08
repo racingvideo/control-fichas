@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://wjbmjauvwyseugtaugjb.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "sb_publishable_exynDYj6j9ZtXOwhiAC7vQ_dD5Swvu2";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const entrenadores = {
   "Tercera Division": [
@@ -39,8 +45,6 @@ const entrenadores = {
   ],
 };
 
-const STORAGE_AVISADOS = "fichas_medicas_avisadas";
-
 export default function App() {
   const [jugadores, setJugadores] = useState([]);
   const [busqueda, setBusqueda] = useState("");
@@ -64,21 +68,71 @@ export default function App() {
     cargarAvisados();
   }, []);
 
-  function cargarAvisados() {
-    const datosGuardados = localStorage.getItem(STORAGE_AVISADOS);
+  async function cargarAvisados() {
+    const { data, error } = await supabase
+      .from("avisos_fichas_medicas")
+      .select("clave");
 
-    if (datosGuardados) {
-      setAvisados(JSON.parse(datosGuardados));
+    if (error) {
+      console.error("Error cargando avisos:", error);
+      return;
     }
+
+    const claves = data.map((aviso) => aviso.clave);
+
+    setAvisados(claves);
   }
 
-  function guardarAvisados(nuevosAvisados) {
-    localStorage.setItem(
-      STORAGE_AVISADOS,
-      JSON.stringify(nuevosAvisados)
+  async function registrarAvisados(alertas) {
+    const registros = alertas.flatMap((alerta) =>
+      alerta.jugadores.map((jugador) => ({
+        clave: obtenerClaveAviso(jugador),
+        categoria: jugador.categoria,
+        cedula: String(jugador.cedula),
+        nombre: jugador.nombre,
+        vencimiento: jugador.vencimiento,
+      }))
     );
 
-    setAvisados(nuevosAvisados);
+    if (registros.length === 0) return;
+
+    const { error } = await supabase
+      .from("avisos_fichas_medicas")
+      .upsert(registros, {
+        onConflict: "clave",
+        ignoreDuplicates: true,
+      });
+
+    if (error) {
+      console.error("Error registrando avisos:", error);
+      alert("Los mails se enviaron, pero hubo un error guardando los avisos.");
+      return;
+    }
+
+    await cargarAvisados();
+  }
+
+  async function reiniciarAvisos() {
+    const confirmar = window.confirm(
+      "Esto borrará el registro online de avisos enviados y todas las urgencias actuales volverán a aparecer como nuevas para todos. ¿Confirmás?"
+    );
+
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from("avisos_fichas_medicas")
+      .delete()
+      .neq("clave", "");
+
+    if (error) {
+      console.error("Error reiniciando avisos:", error);
+      alert("Error al reiniciar avisos.");
+      return;
+    }
+
+    await cargarAvisados();
+
+    alert("Registro online de avisos reiniciado.");
   }
 
   async function cargarExcel() {
@@ -404,17 +458,7 @@ Por favor gestionar renovaciones correspondientes.
       }
 
       if (soloNuevas) {
-        const nuevasClaves = alertas.flatMap((alerta) =>
-          alerta.jugadores.map((jugador) =>
-            obtenerClaveAviso(jugador)
-          )
-        );
-
-        const avisadosActualizados = [
-          ...new Set([...avisados, ...nuevasClaves]),
-        ];
-
-        guardarAvisados(avisadosActualizados);
+        await registrarAvisados(alertas);
       }
 
       alert(
@@ -426,18 +470,6 @@ Por favor gestionar renovaciones correspondientes.
       console.error(error);
       alert("Error al enviar alertas.");
     }
-  }
-
-  function reiniciarAvisos() {
-    const confirmar = window.confirm(
-      "Esto hará que todas las urgencias actuales vuelvan a considerarse como no avisadas. ¿Confirmás?"
-    );
-
-    if (!confirmar) return;
-
-    guardarAvisados([]);
-
-    alert("Registro de avisos reiniciado.");
   }
 
   const alertasPreview = useMemo(() => {
@@ -608,16 +640,7 @@ Por favor gestionar renovaciones correspondientes.
                   !mostrarVistaPrevia
                 )
               }
-              style={{
-                background: "#111827",
-                color: "white",
-                border: "none",
-                padding: "14px 20px",
-                borderRadius: "12px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "15px",
-              }}
+              style={buttonDark}
             >
               👁️ Vista previa
             </button>
@@ -628,64 +651,28 @@ Por favor gestionar renovaciones correspondientes.
                   !mostrarVistaPreviaNuevas
                 )
               }
-              style={{
-                background: "#2563eb",
-                color: "white",
-                border: "none",
-                padding: "14px 20px",
-                borderRadius: "12px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "15px",
-              }}
+              style={buttonBlue}
             >
               🔔 Nuevas urgencias
             </button>
 
             <button
               onClick={() => enviarAlertas(true)}
-              style={{
-                background: "#7c3aed",
-                color: "white",
-                border: "none",
-                padding: "14px 20px",
-                borderRadius: "12px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "15px",
-              }}
+              style={buttonPurple}
             >
               📩 Enviar nuevas
             </button>
 
             <button
               onClick={() => enviarAlertas(false)}
-              style={{
-                background: "#dc2626",
-                color: "white",
-                border: "none",
-                padding: "14px 20px",
-                borderRadius: "12px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "15px",
-              }}
+              style={buttonRed}
             >
               🚨 Enviar todas
             </button>
 
             <button
               onClick={reiniciarAvisos}
-              style={{
-                background: "#6b7280",
-                color: "white",
-                border: "none",
-                padding: "14px 20px",
-                borderRadius: "12px",
-                fontWeight: "bold",
-                cursor: "pointer",
-                fontSize: "15px",
-              }}
+              style={buttonGray}
             >
               ♻️ Reiniciar avisos
             </button>
@@ -1118,6 +1105,41 @@ function FiltroButton({
     </button>
   );
 }
+
+const baseButton = {
+  color: "white",
+  border: "none",
+  padding: "14px 20px",
+  borderRadius: "12px",
+  fontWeight: "bold",
+  cursor: "pointer",
+  fontSize: "15px",
+};
+
+const buttonDark = {
+  ...baseButton,
+  background: "#111827",
+};
+
+const buttonBlue = {
+  ...baseButton,
+  background: "#2563eb",
+};
+
+const buttonPurple = {
+  ...baseButton,
+  background: "#7c3aed",
+};
+
+const buttonRed = {
+  ...baseButton,
+  background: "#dc2626",
+};
+
+const buttonGray = {
+  ...baseButton,
+  background: "#6b7280",
+};
 
 const filtrosContainer = {
   display: "flex",
