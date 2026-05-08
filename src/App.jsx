@@ -3,12 +3,40 @@ import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 
 const entrenadores = {
-  "Tercera Division": "ramirodoes@gmail.com",
-  "Sub 19": "ramirodoes@gmail.com",
-  "Sub 17": "ramirodoes@gmail.com",
-  "Sub 16": "videoanalisisracing2022@gmail.com",
-  "Sub 15": "videoanalisisracing2022@gmail.com",
-  "Sub 14": "ramirodoes@gmail.com",
+  "Tercera Division": [
+    "gbuenosc@gmail.com",
+    "hugoguti05@gmail.com",
+    "santi.ferbaillo@gmail.com",
+    "fgarciadt91@gmail.com",
+    "videoanalisisracing2022@gmail.com",
+  ],
+  "Sub 19": [
+    "videoanalisisracing2022@gmail.com",
+    "gbuenosc@gmail.com",
+    "sebasmurgia75@gmail.com",
+  ],
+  "Sub 17": [
+    "ernek17@gmail.com",
+    "videoanalisisracing2022@gmail.com",
+    "liberhistorico11@gmail.com",
+  ],
+  "Sub 16": [
+    "videoanalisisracing2022@gmail.com",
+    "fgarciadt91@gmail.com",
+    "jimymachado95@gmail.com",
+  ],
+  "Sub 15": [
+    "videoanalisisracing2022@gmail.com",
+    "guillermodavidcalcastellano@gmail.com",
+    "mauriciomassa7@gmail.com",
+    "maxi1524@gmail.com",
+  ],
+  "Sub 14": [
+    "videoanalisisracing2022@gmail.com",
+    "icardorulo@gmail.com",
+    "martinbonino14@gmail.com",
+    "maxi1524@gmail.com",
+  ],
 };
 
 export default function App() {
@@ -67,7 +95,7 @@ export default function App() {
             id: `${sheetName}-${i}`,
             nombre: fila[0],
             cedula: fila[1],
-            vencimiento: formatearFecha(fila[2]),
+            vencimiento: formatearFecha(fechaDesdeExcel(fila[2])),
             estadoExcel: fila[3] || "",
             categoria: sheetName,
           });
@@ -78,7 +106,7 @@ export default function App() {
     setJugadores(jugadoresProcesados);
   }
 
-  function formatearFecha(fechaExcel) {
+  function fechaDesdeExcel(fechaExcel) {
     if (typeof fechaExcel === "number") {
       const fecha = XLSX.SSF.parse_date_code(fechaExcel);
 
@@ -91,10 +119,67 @@ export default function App() {
     return fechaExcel;
   }
 
+  function formatearFecha(fecha) {
+    if (!fecha) return "";
+
+    if (typeof fecha === "string" && fecha.includes("/")) {
+      const partes = fecha.split("/");
+
+      if (partes.length === 3) {
+        const dia = partes[0].padStart(2, "0");
+        const mes = partes[1].padStart(2, "0");
+        const anio = partes[2];
+
+        return `${anio}-${mes}-${dia}`;
+      }
+    }
+
+    return fecha;
+  }
+
+  function crearFechaLocal(fecha) {
+    if (!fecha) return null;
+
+    if (typeof fecha === "string" && fecha.includes("-")) {
+      const [anio, mes, dia] = fecha.split("-").map(Number);
+
+      return new Date(anio, mes - 1, dia);
+    }
+
+    if (typeof fecha === "string" && fecha.includes("/")) {
+      const [dia, mes, anio] = fecha.split("/").map(Number);
+
+      return new Date(anio, mes - 1, dia);
+    }
+
+    return new Date(fecha);
+  }
+
+  function mostrarFechaEspanol(fecha) {
+    const fechaLocal = crearFechaLocal(fecha);
+
+    if (!fechaLocal || isNaN(fechaLocal)) return fecha;
+
+    const dia = String(fechaLocal.getDate()).padStart(2, "0");
+    const mes = String(fechaLocal.getMonth() + 1).padStart(2, "0");
+    const anio = fechaLocal.getFullYear();
+
+    return `${dia}/${mes}/${anio}`;
+  }
+
   function calcularDiasRestantes(fecha) {
     const hoy = new Date();
-    const vencimiento = new Date(fecha);
-    const diferencia = vencimiento - hoy;
+    const hoyLocal = new Date(
+      hoy.getFullYear(),
+      hoy.getMonth(),
+      hoy.getDate()
+    );
+
+    const vencimiento = crearFechaLocal(fecha);
+
+    if (!vencimiento || isNaN(vencimiento)) return 9999;
+
+    const diferencia = vencimiento - hoyLocal;
 
     return Math.ceil(
       diferencia / (1000 * 60 * 60 * 24)
@@ -158,7 +243,7 @@ export default function App() {
     let alertas = [];
 
     for (const categoria in entrenadores) {
-      const mailEntrenador = entrenadores[categoria];
+      const mailsEntrenadores = entrenadores[categoria];
 
       const jugadoresCategoria = jugadores
         .filter((jugador) => {
@@ -202,7 +287,9 @@ export default function App() {
           const icono = obtenerIconoAlerta(dias);
           const textoDias = obtenerTextoDias(dias);
 
-          return `${icono} ${jugador.nombre} - ${textoDias} (${jugador.vencimiento})`;
+          return `${icono} ${jugador.nombre} - ${textoDias} (${mostrarFechaEspanol(
+            jugador.vencimiento
+          )})`;
         })
         .join("\n");
 
@@ -218,7 +305,7 @@ Por favor gestionar renovaciones correspondientes.
 
       alertas.push({
         categoria,
-        mailEntrenador,
+        mailsEntrenadores,
         jugadores: jugadoresCategoria,
         subject,
         mensaje,
@@ -238,28 +325,36 @@ Por favor gestionar renovaciones correspondientes.
       return;
     }
 
+    const cantidadCorreos = alertas.reduce(
+      (total, alerta) =>
+        total + alerta.mailsEntrenadores.length,
+      0
+    );
+
     const confirmar = window.confirm(
-      `Se enviarán ${alertas.length} correos. ¿Confirmás el envío?`
+      `Se enviarán ${cantidadCorreos} correos en ${alertas.length} categorías. ¿Confirmás el envío?`
     );
 
     if (!confirmar) return;
 
     try {
       for (const alerta of alertas) {
-        await emailjs.send(
-          "service_5x2tbn1",
-          "template_ud6605j",
-          {
-            subject: alerta.subject,
-            mensaje: alerta.mensaje,
-            to_email: alerta.mailEntrenador,
-          },
-          "762iROv7nnKZVp4Hc"
-        );
+        for (const mail of alerta.mailsEntrenadores) {
+          await emailjs.send(
+            "service_5x2tbn1",
+            "template_ud6605j",
+            {
+              subject: alerta.subject,
+              mensaje: alerta.mensaje,
+              to_email: mail,
+            },
+            "762iROv7nnKZVp4Hc"
+          );
+        }
       }
 
       alert(
-        `Alertas enviadas correctamente. Correos enviados: ${alertas.length}`
+        `Alertas enviadas correctamente. Correos enviados: ${cantidadCorreos}`
       );
     } catch (error) {
       console.error(error);
@@ -508,7 +603,9 @@ Por favor gestionar renovaciones correspondientes.
                     >
                       Enviar a:{" "}
                       <strong>
-                        {alerta.mailEntrenador}
+                        {alerta.mailsEntrenadores.join(
+                          ", "
+                        )}
                       </strong>
                     </p>
 
@@ -547,7 +644,10 @@ Por favor gestionar renovaciones correspondientes.
                               {jugador.nombre}
                             </strong>{" "}
                             — {obtenerTextoDias(dias)} (
-                            {jugador.vencimiento})
+                            {mostrarFechaEspanol(
+                              jugador.vencimiento
+                            )}
+                            )
                           </li>
                         );
                       })}
@@ -720,7 +820,9 @@ Por favor gestionar renovaciones correspondientes.
                       </td>
 
                       <td style={tdStyle}>
-                        {jugador.vencimiento}
+                        {mostrarFechaEspanol(
+                          jugador.vencimiento
+                        )}
                       </td>
 
                       <td style={tdStyle}>{dias}</td>
