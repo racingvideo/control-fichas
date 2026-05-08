@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import emailjs from "@emailjs/browser";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = "https://wjbmjauvwyseugtaugjb.supabase.co/";
+const SUPABASE_URL = "https://wjbmjauvwyseugtaugjb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_exynDYj6j9ZtXOwhiAC7vQ_dD5Swvu2";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
