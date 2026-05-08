@@ -4,7 +4,7 @@ import emailjs from "@emailjs/browser";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://wjbmjauvwyseugtaugjb.supabase.co/rest/v1/";
-const SUPABASE_ANON_KEY = "sb_publishable_exynDYj6j9ZtXOwhiAC7vQ_dD5Swvu2";
+const SUPABASE_ANON_KEY = "PEGAR_ACA_TU_PUBLISHABLE_KEYsb_publishable_exynDYj6j9ZtXOwhiAC7vQ_dD5Swvu2";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -105,7 +105,7 @@ export default function App() {
 
     if (error) {
       console.error("Error registrando avisos:", error);
-      alert("Los mails se enviaron, pero hubo un error guardando los avisos.");
+      alert("Hubo un error guardando los avisos.");
       return;
     }
 
@@ -133,6 +133,32 @@ export default function App() {
     await cargarAvisados();
 
     alert("Registro online de avisos reiniciado.");
+  }
+
+  async function marcarNuevasComoAvisadas() {
+    const alertas = prepararAlertas(true);
+
+    if (alertas.length === 0) {
+      alert("No hay nuevas urgencias para marcar como avisadas.");
+      return;
+    }
+
+    const cantidadJugadores = alertas.reduce(
+      (total, alerta) => total + alerta.jugadores.length,
+      0
+    );
+
+    const confirmar = window.confirm(
+      `Se marcarán ${cantidadJugadores} nuevas urgencias como avisadas, sin enviar correos. ¿Confirmás?`
+    );
+
+    if (!confirmar) return;
+
+    await registrarAvisados(alertas);
+
+    alert(
+      `Nuevas urgencias marcadas como avisadas: ${cantidadJugadores}`
+    );
   }
 
   async function cargarExcel() {
@@ -657,6 +683,13 @@ Por favor gestionar renovaciones correspondientes.
             </button>
 
             <button
+              onClick={marcarNuevasComoAvisadas}
+              style={buttonGreen}
+            >
+              ✅ Marcar nuevas como avisadas
+            </button>
+
+            <button
               onClick={() => enviarAlertas(true)}
               style={buttonPurple}
             >
@@ -1124,6 +1157,11 @@ const buttonDark = {
 const buttonBlue = {
   ...baseButton,
   background: "#2563eb",
+};
+
+const buttonGreen = {
+  ...baseButton,
+  background: "#16a34a",
 };
 
 const buttonPurple = {
