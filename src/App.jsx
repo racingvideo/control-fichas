@@ -11,8 +11,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const entrenadores = {
   "Tercera Division": [
     "gbuenosc@gmail.com",
-    "hugoguti05@gmail.com",
-    "santi.ferbaillo@gmail.com",
+    "hugoguti05@gmail.com",    
     "fgarciadt91@gmail.com",
     "videoanalisisracing2022@gmail.com",
   ],
