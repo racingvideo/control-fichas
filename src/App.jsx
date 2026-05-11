@@ -11,7 +11,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const entrenadores = {
   "Tercera Division": [
     "gbuenosc@gmail.com",
-    "hugoguti05@gmail.com",    
+    "hugoguti05@gmail.com",
     "fgarciadt91@gmail.com",
     "videoanalisisracing2022@gmail.com",
   ],
@@ -61,6 +61,9 @@ export default function App() {
     useState(false);
 
   const [avisados, setAvisados] = useState([]);
+
+  const [textoConvocados, setTextoConvocados] = useState("");
+  const [resultadosConvocados, setResultadosConvocados] = useState([]);
 
   useEffect(() => {
     cargarExcel();
@@ -273,6 +276,7 @@ export default function App() {
 
   function calcularDiasRestantes(fecha) {
     const hoy = new Date();
+
     const hoyLocal = new Date(
       hoy.getFullYear(),
       hoy.getMonth(),
@@ -497,6 +501,175 @@ Por favor gestionar renovaciones correspondientes.
     }
   }
 
+  function normalizarTexto(texto) {
+    return String(texto || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9ñ\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function separarLineasConvocados(texto) {
+    return texto
+      .split(/\n|,|;/)
+      .map((linea) => linea.trim())
+      .filter((linea) => linea.length > 0);
+  }
+
+  function buscarJugadorConvocado(nombreIngresado) {
+    const buscado = normalizarTexto(nombreIngresado);
+
+    if (!buscado) return null;
+
+    const coincidenciaExacta = jugadores.find(
+      (jugador) => normalizarTexto(jugador.nombre) === buscado
+    );
+
+    if (coincidenciaExacta) {
+      return {
+        jugador: coincidenciaExacta,
+        tipo: "Coincidencia exacta",
+      };
+    }
+
+    const coincidenciaParcial = jugadores.find((jugador) => {
+      const nombreJugador = normalizarTexto(jugador.nombre);
+
+      return (
+        nombreJugador.includes(buscado) ||
+        buscado.includes(nombreJugador)
+      );
+    });
+
+    if (coincidenciaParcial) {
+      return {
+        jugador: coincidenciaParcial,
+        tipo: "Coincidencia parcial",
+      };
+    }
+
+    const palabrasBuscado = buscado
+      .split(" ")
+      .filter((palabra) => palabra.length >= 3);
+
+    const coincidenciaPorPalabras = jugadores.find((jugador) => {
+      const nombreJugador = normalizarTexto(jugador.nombre);
+
+      return palabrasBuscado.every((palabra) =>
+        nombreJugador.includes(palabra)
+      );
+    });
+
+    if (coincidenciaPorPalabras) {
+      return {
+        jugador: coincidenciaPorPalabras,
+        tipo: "Coincidencia por palabras",
+      };
+    }
+
+    return null;
+  }
+
+  function verificarConvocados() {
+    const nombres = separarLineasConvocados(textoConvocados);
+
+    if (nombres.length === 0) {
+      alert("Pegá primero una lista de convocados.");
+      return;
+    }
+
+    const resultados = nombres.map((nombreOriginal) => {
+      const encontrado = buscarJugadorConvocado(nombreOriginal);
+
+      if (!encontrado) {
+        return {
+          nombreOriginal,
+          encontrado: false,
+        };
+      }
+
+      const jugador = encontrado.jugador;
+      const dias = calcularDiasRestantes(jugador.vencimiento);
+      const estado = obtenerEstado(dias);
+
+      return {
+        nombreOriginal,
+        encontrado: true,
+        jugador,
+        dias,
+        estado,
+        tipo: encontrado.tipo,
+      };
+    });
+
+    setResultadosConvocados(resultados);
+  }
+
+  function limpiarConvocados() {
+    setTextoConvocados("");
+    setResultadosConvocados([]);
+  }
+
+  function copiarResumenConvocados() {
+    if (resultadosConvocados.length === 0) {
+      alert("Primero verificá una lista de convocados.");
+      return;
+    }
+
+    const noHabilitados = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Vencida"
+    );
+
+    const urgentes = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Urgente"
+    );
+
+    const noEncontrados = resultadosConvocados.filter(
+      (resultado) => !resultado.encontrado
+    );
+
+    let mensaje = "Revisión de fichas médicas:\n\n";
+
+    if (noHabilitados.length === 0) {
+      mensaje += "✅ No hay convocados con ficha vencida.\n\n";
+    } else {
+      mensaje += "⛔ Convocados con ficha vencida:\n";
+      noHabilitados.forEach((resultado) => {
+        mensaje += `• ${resultado.jugador.nombre} - ${obtenerTextoDias(
+          resultado.dias
+        )} (${mostrarFechaEspanol(resultado.jugador.vencimiento)})\n`;
+      });
+      mensaje += "\n";
+    }
+
+    if (urgentes.length > 0) {
+      mensaje += "🔴 Convocados con ficha urgente:\n";
+      urgentes.forEach((resultado) => {
+        mensaje += `• ${resultado.jugador.nombre} - ${obtenerTextoDias(
+          resultado.dias
+        )} (${mostrarFechaEspanol(resultado.jugador.vencimiento)})\n`;
+      });
+      mensaje += "\n";
+    }
+
+    if (noEncontrados.length > 0) {
+      mensaje += "❓ No encontrados en el listado:\n";
+      noEncontrados.forEach((resultado) => {
+        mensaje += `• ${resultado.nombreOriginal}\n`;
+      });
+    }
+
+    navigator.clipboard.writeText(mensaje);
+
+    alert("Resumen copiado al portapapeles.");
+  }
+
   const alertasPreview = useMemo(() => {
     return prepararAlertas(false);
   }, [jugadores, avisados]);
@@ -511,6 +684,44 @@ Por favor gestionar renovaciones correspondientes.
       0
     );
   }, [nuevasUrgenciasPreview]);
+
+  const resumenConvocados = useMemo(() => {
+    const vencidos = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Vencida"
+    ).length;
+
+    const urgentes = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Urgente"
+    ).length;
+
+    const atencion = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Atención"
+    ).length;
+
+    const alDia = resultadosConvocados.filter(
+      (resultado) =>
+        resultado.encontrado &&
+        resultado.estado.texto === "Al día"
+    ).length;
+
+    const noEncontrados = resultadosConvocados.filter(
+      (resultado) => !resultado.encontrado
+    ).length;
+
+    return {
+      vencidos,
+      urgentes,
+      atencion,
+      alDia,
+      noEncontrados,
+    };
+  }, [resultadosConvocados]);
 
   const jugadoresFiltrados = useMemo(() => {
     return [...jugadores]
@@ -765,6 +976,248 @@ Por favor gestionar renovaciones correspondientes.
             cantidad={dashboard.alDia}
             color="#16a34a"
           />
+        </div>
+
+        <div
+          style={{
+            background: "white",
+            borderRadius: "18px",
+            padding: "20px",
+            marginBottom: "30px",
+            boxShadow:
+              "0 4px 20px rgba(0,0,0,0.06)",
+          }}
+        >
+          <h2
+            style={{
+              marginTop: 0,
+              color: "#111827",
+            }}
+          >
+            Verificación de convocados
+          </h2>
+
+          <p
+            style={{
+              color: "#6b7280",
+              marginTop: 0,
+            }}
+          >
+            Pegá la lista de convocados, un jugador por línea, y la app verificará su ficha médica.
+          </p>
+
+          <textarea
+            value={textoConvocados}
+            onChange={(e) => setTextoConvocados(e.target.value)}
+            placeholder={`Ejemplo:\nJuan Pérez\nLucas Rodríguez\nMartín Silva`}
+            style={{
+              width: "100%",
+              minHeight: "160px",
+              padding: "14px",
+              borderRadius: "12px",
+              border: "1px solid #d1d5db",
+              fontSize: "15px",
+              outline: "none",
+              boxSizing: "border-box",
+              resize: "vertical",
+              marginBottom: "15px",
+            }}
+          />
+
+          <div
+            style={{
+              display: "flex",
+              gap: "10px",
+              flexWrap: "wrap",
+              marginBottom:
+                resultadosConvocados.length > 0 ? "20px" : 0,
+            }}
+          >
+            <button
+              onClick={verificarConvocados}
+              style={buttonBlue}
+            >
+              🔎 Verificar convocados
+            </button>
+
+            <button
+              onClick={copiarResumenConvocados}
+              style={buttonGreen}
+            >
+              📋 Copiar resumen
+            </button>
+
+            <button
+              onClick={limpiarConvocados}
+              style={buttonGray}
+            >
+              Limpiar
+            </button>
+          </div>
+
+          {resultadosConvocados.length > 0 && (
+            <div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns:
+                    "repeat(auto-fit, minmax(160px, 1fr))",
+                  gap: "12px",
+                  marginBottom: "20px",
+                }}
+              >
+                <MiniCard
+                  titulo="⛔ Vencidos"
+                  cantidad={resumenConvocados.vencidos}
+                  color="#111111"
+                />
+
+                <MiniCard
+                  titulo="🔴 Urgentes"
+                  cantidad={resumenConvocados.urgentes}
+                  color="#dc2626"
+                />
+
+                <MiniCard
+                  titulo="🟠 Atención"
+                  cantidad={resumenConvocados.atencion}
+                  color="#f59e0b"
+                />
+
+                <MiniCard
+                  titulo="🟢 Al día"
+                  cantidad={resumenConvocados.alDia}
+                  color="#16a34a"
+                />
+
+                <MiniCard
+                  titulo="❓ No encontrados"
+                  cantidad={resumenConvocados.noEncontrados}
+                  color="#6b7280"
+                />
+              </div>
+
+              <div
+                style={{
+                  overflowX: "auto",
+                  borderRadius: "12px",
+                }}
+              >
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    minWidth: "900px",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={thStyle}>Ingresado</th>
+                      <th style={thStyle}>Jugador encontrado</th>
+                      <th style={thStyle}>Categoría</th>
+                      <th style={thStyle}>Vencimiento</th>
+                      <th style={thStyle}>Días</th>
+                      <th style={thStyle}>Estado</th>
+                      <th style={thStyle}>Coincidencia</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {resultadosConvocados.map((resultado, index) => {
+                      if (!resultado.encontrado) {
+                        return (
+                          <tr
+                            key={`${resultado.nombreOriginal}-${index}`}
+                            style={{
+                              borderBottom: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <td style={tdStyle}>
+                              <strong>{resultado.nombreOriginal}</strong>
+                            </td>
+
+                            <td style={tdStyle}>No encontrado</td>
+                            <td style={tdStyle}>—</td>
+                            <td style={tdStyle}>—</td>
+                            <td style={tdStyle}>—</td>
+
+                            <td style={tdStyle}>
+                              <span
+                                style={{
+                                  background: "#6b7280",
+                                  color: "white",
+                                  padding: "8px 12px",
+                                  borderRadius: "999px",
+                                  fontWeight: "bold",
+                                  fontSize: "14px",
+                                  display: "inline-block",
+                                  minWidth: "110px",
+                                  textAlign: "center",
+                                }}
+                              >
+                                No encontrado
+                              </span>
+                            </td>
+
+                            <td style={tdStyle}>—</td>
+                          </tr>
+                        );
+                      }
+
+                      return (
+                        <tr
+                          key={`${resultado.nombreOriginal}-${index}`}
+                          style={{
+                            borderBottom: "1px solid #e5e7eb",
+                          }}
+                        >
+                          <td style={tdStyle}>
+                            {resultado.nombreOriginal}
+                          </td>
+
+                          <td style={tdStyle}>
+                            <strong>{resultado.jugador.nombre}</strong>
+                          </td>
+
+                          <td style={tdStyle}>
+                            {resultado.jugador.categoria}
+                          </td>
+
+                          <td style={tdStyle}>
+                            {mostrarFechaEspanol(
+                              resultado.jugador.vencimiento
+                            )}
+                          </td>
+
+                          <td style={tdStyle}>{resultado.dias}</td>
+
+                          <td style={tdStyle}>
+                            <span
+                              style={{
+                                background: resultado.estado.color,
+                                color: "white",
+                                padding: "8px 12px",
+                                borderRadius: "999px",
+                                fontWeight: "bold",
+                                fontSize: "14px",
+                                display: "inline-block",
+                                minWidth: "90px",
+                                textAlign: "center",
+                              }}
+                            >
+                              {resultado.estado.texto}
+                            </span>
+                          </td>
+
+                          <td style={tdStyle}>{resultado.tipo}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         <div
@@ -1091,6 +1544,41 @@ function DashboardCard({
         style={{
           fontSize: "42px",
           fontWeight: "bold",
+        }}
+      >
+        {cantidad}
+      </div>
+    </div>
+  );
+}
+
+function MiniCard({
+  titulo,
+  cantidad,
+  color,
+}) {
+  return (
+    <div
+      style={{
+        background: color,
+        color: "white",
+        padding: "16px",
+        borderRadius: "14px",
+        fontWeight: "bold",
+      }}
+    >
+      <div
+        style={{
+          fontSize: "14px",
+          marginBottom: "6px",
+        }}
+      >
+        {titulo}
+      </div>
+
+      <div
+        style={{
+          fontSize: "28px",
         }}
       >
         {cantidad}
