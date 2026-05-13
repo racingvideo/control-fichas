@@ -12,6 +12,7 @@ const entrenadores = {
   "Tercera Division": [
     "gbuenosc@gmail.com",
     "hugoguti05@gmail.com",
+    "santiifer94@outlook.es",
     "fgarciadt91@gmail.com",
     "videoanalisisracing2022@gmail.com",
   ],
