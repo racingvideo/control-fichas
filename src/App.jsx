@@ -12,7 +12,6 @@ const entrenadores = {
   "Tercera Division": [
     "gbuenosc@gmail.com",
     "hugoguti05@gmail.com",
-    "santiifer94@outlook.es",
     "fgarciadt91@gmail.com",
     "videoanalisisracing2022@gmail.com",
   ],
@@ -53,6 +52,9 @@ export default function App() {
     useState("Todas");
 
   const [prioridadSeleccionada, setPrioridadSeleccionada] =
+    useState("Todas");
+
+  const [categoriaAlertas, setCategoriaAlertas] =
     useState("Todas");
 
   const [mostrarVistaPrevia, setMostrarVistaPrevia] =
@@ -116,16 +118,26 @@ export default function App() {
   }
 
   async function reiniciarAvisos() {
+    const textoCategoria =
+      categoriaAlertas === "Todas"
+        ? "todas las categorías"
+        : categoriaAlertas;
+
     const confirmar = window.confirm(
-      "Esto borrará el registro online de avisos enviados y todas las urgencias actuales volverán a aparecer como nuevas para todos. ¿Confirmás?"
+      `Esto borrará el registro online de avisos enviados para ${textoCategoria}. Las urgencias actuales volverán a aparecer como nuevas. ¿Confirmás?`
     );
 
     if (!confirmar) return;
 
-    const { error } = await supabase
-      .from("avisos_fichas_medicas")
-      .delete()
-      .neq("clave", "");
+    let query = supabase.from("avisos_fichas_medicas").delete();
+
+    if (categoriaAlertas === "Todas") {
+      query = query.neq("clave", "");
+    } else {
+      query = query.eq("categoria", categoriaAlertas);
+    }
+
+    const { error } = await query;
 
     if (error) {
       console.error("Error reiniciando avisos:", error);
@@ -135,7 +147,7 @@ export default function App() {
 
     await cargarAvisados();
 
-    alert("Registro online de avisos reiniciado.");
+    alert(`Registro online de avisos reiniciado para ${textoCategoria}.`);
   }
 
   async function marcarNuevasComoAvisadas() {
@@ -151,8 +163,13 @@ export default function App() {
       0
     );
 
+    const textoCategoria =
+      categoriaAlertas === "Todas"
+        ? "todas las categorías"
+        : categoriaAlertas;
+
     const confirmar = window.confirm(
-      `Se marcarán ${cantidadJugadores} nuevas urgencias como avisadas, sin enviar correos. ¿Confirmás?`
+      `Se marcarán ${cantidadJugadores} nuevas urgencias como avisadas en ${textoCategoria}, sin enviar correos. ¿Confirmás?`
     );
 
     if (!confirmar) return;
@@ -358,10 +375,22 @@ export default function App() {
     return avisados.includes(clave);
   }
 
+  function obtenerCategoriasParaAlertas() {
+    const categorias = Object.keys(entrenadores);
+
+    if (categoriaAlertas === "Todas") {
+      return categorias;
+    }
+
+    return categorias.filter((categoria) => categoria === categoriaAlertas);
+  }
+
   function prepararAlertas(soloNuevas = false) {
     let alertas = [];
 
-    for (const categoria in entrenadores) {
+    const categoriasParaAlertas = obtenerCategoriasParaAlertas();
+
+    categoriasParaAlertas.forEach((categoria) => {
       const mailsEntrenadores = entrenadores[categoria];
 
       const jugadoresCategoria = jugadores
@@ -403,7 +432,7 @@ export default function App() {
         });
 
       if (jugadoresCategoria.length === 0) {
-        continue;
+        return;
       }
 
       const mensajeJugadores = jugadoresCategoria
@@ -440,7 +469,7 @@ Por favor gestionar renovaciones correspondientes.
         subject,
         mensaje,
       });
-    }
+    });
 
     return alertas;
   }
@@ -451,8 +480,8 @@ Por favor gestionar renovaciones correspondientes.
     if (alertas.length === 0) {
       alert(
         soloNuevas
-          ? "No hay nuevas urgencias para enviar."
-          : "No hay jugadores vencidos o urgentes para enviar."
+          ? "No hay nuevas urgencias para enviar en la categoría seleccionada."
+          : "No hay jugadores vencidos o urgentes para enviar en la categoría seleccionada."
       );
       return;
     }
@@ -463,10 +492,15 @@ Por favor gestionar renovaciones correspondientes.
       0
     );
 
+    const textoCategoria =
+      categoriaAlertas === "Todas"
+        ? "todas las categorías"
+        : categoriaAlertas;
+
     const confirmar = window.confirm(
       soloNuevas
-        ? `Se enviarán ${cantidadCorreos} correos con NUEVAS urgencias en ${alertas.length} categorías. ¿Confirmás el envío?`
-        : `Se enviarán ${cantidadCorreos} correos en ${alertas.length} categorías. ¿Confirmás el envío?`
+        ? `Se enviarán ${cantidadCorreos} correos con NUEVAS urgencias en ${textoCategoria}. ¿Confirmás el envío?`
+        : `Se enviarán ${cantidadCorreos} correos de alerta en ${textoCategoria}. ¿Confirmás el envío?`
     );
 
     if (!confirmar) return;
@@ -673,11 +707,11 @@ Por favor gestionar renovaciones correspondientes.
 
   const alertasPreview = useMemo(() => {
     return prepararAlertas(false);
-  }, [jugadores, avisados]);
+  }, [jugadores, avisados, categoriaAlertas]);
 
   const nuevasUrgenciasPreview = useMemo(() => {
     return prepararAlertas(true);
-  }, [jugadores, avisados]);
+  }, [jugadores, avisados, categoriaAlertas]);
 
   const cantidadNuevasUrgencias = useMemo(() => {
     return nuevasUrgenciasPreview.reduce(
@@ -802,6 +836,11 @@ Por favor gestionar renovaciones correspondientes.
     };
   }, [jugadoresFiltrados]);
 
+  const textoCategoriaAlertas =
+    categoriaAlertas === "Todas"
+      ? "todas las categorías"
+      : categoriaAlertas;
+
   return (
     <div
       style={{
@@ -859,8 +898,8 @@ Por favor gestionar renovaciones correspondientes.
                 marginTop: "8px",
               }}
             >
-              🔔 Nuevas urgencias detectadas:{" "}
-              {cantidadNuevasUrgencias}
+              🔔 Nuevas urgencias detectadas en{" "}
+              {textoCategoriaAlertas}: {cantidadNuevasUrgencias}
             </p>
           </div>
 
@@ -869,8 +908,50 @@ Por favor gestionar renovaciones correspondientes.
               display: "flex",
               gap: "10px",
               flexWrap: "wrap",
+              alignItems: "center",
             }}
           >
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              <label
+                style={{
+                  fontSize: "13px",
+                  color: "#374151",
+                  fontWeight: "bold",
+                }}
+              >
+                Categoría para alertas
+              </label>
+
+              <select
+                value={categoriaAlertas}
+                onChange={(e) =>
+                  setCategoriaAlertas(e.target.value)
+                }
+                style={{
+                  padding: "12px",
+                  borderRadius: "12px",
+                  border: "1px solid #d1d5db",
+                  fontWeight: "bold",
+                  minWidth: "190px",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="Todas">Todas</option>
+
+                {Object.keys(entrenadores).map((categoria) => (
+                  <option key={categoria} value={categoria}>
+                    {categoria}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <button
               onClick={() =>
                 setMostrarVistaPrevia(
@@ -925,7 +1006,7 @@ Por favor gestionar renovaciones correspondientes.
 
         {mostrarVistaPrevia && (
           <VistaPreviaAlertas
-            titulo="Vista previa de todas las alertas"
+            titulo={`Vista previa de todas las alertas - ${textoCategoriaAlertas}`}
             alertas={alertasPreview}
             calcularDiasRestantes={calcularDiasRestantes}
             obtenerIconoAlerta={obtenerIconoAlerta}
@@ -936,7 +1017,7 @@ Por favor gestionar renovaciones correspondientes.
 
         {mostrarVistaPreviaNuevas && (
           <VistaPreviaAlertas
-            titulo="Vista previa de nuevas urgencias"
+            titulo={`Vista previa de nuevas urgencias - ${textoCategoriaAlertas}`}
             alertas={nuevasUrgenciasPreview}
             calcularDiasRestantes={calcularDiasRestantes}
             obtenerIconoAlerta={obtenerIconoAlerta}
